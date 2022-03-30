@@ -459,6 +459,7 @@ usage: (progn BODY...)  */)
     {
       Lisp_Object form = XCAR (body);
       body = XCDR (body);
+    func_lambda_body:
       val = eval_sub (form);
     }
 
@@ -2224,7 +2225,10 @@ eval_sub (Lisp_Object form)
 		  make_fixnum (numargs));
 
       else if (XSUBR (fun)->max_args == UNEVALLED)
+	{
+      func_subr_body_unevalled:
 	val = (XSUBR (fun)->function.aUNEVALLED) (args_left);
+      }
       else if (XSUBR (fun)->max_args == MANY)
 	{
 	  /* Pass a vector of evaluated arguments.  */
@@ -2238,11 +2242,13 @@ eval_sub (Lisp_Object form)
 	    {
 	      Lisp_Object arg = XCAR (args_left);
 	      args_left = XCDR (args_left);
+	    func_subr_arg_many:
 	      vals[argnum++] = eval_sub (arg);
 	    }
 
 	  set_backtrace_args (specpdl + count, vals, argnum);
 
+	func_subr_body_many:
 	  val = XSUBR (fun)->function.aMANY (argnum, vals);
 
 	  lisp_eval_depth--;
@@ -2259,12 +2265,14 @@ eval_sub (Lisp_Object form)
 
 	  for (i = 0; i < maxargs; i++)
 	    {
+	    func_subr_arg_n:
 	      argvals[i] = eval_sub (Fcar (args_left));
 	      args_left = Fcdr (args_left);
 	    }
 
 	  set_backtrace_args (specpdl + count, argvals, numargs);
 
+	func_subr_body_n:
 	  switch (i)
 	    {
 	    case 0:
@@ -2316,7 +2324,10 @@ eval_sub (Lisp_Object form)
 	}
     }
   else if (COMPILEDP (fun) || MODULE_FUNCTIONP (fun))
+    {
+  func_yuck_all:
     return apply_lambda (fun, original_args, count);
+  }
   else
     {
       if (NILP (fun))
@@ -2340,8 +2351,12 @@ eval_sub (Lisp_Object form)
 	     interpreted using lexical-binding or not.  */
 	  specbind (Qlexical_binding,
 		    NILP (Vinternal_interpreter_environment) ? Qnil : Qt);
+
+	func_macro_apply:
 	  exp = apply1 (Fcdr (fun), original_args);
 	  exp = unbind_to (count1, exp);
+
+	func_macro_body:
 	  val = eval_sub (exp);
 	}
       else if (EQ (funcar, Qlambda)
@@ -2919,6 +2934,7 @@ apply_lambda (Lisp_Object fun, Lisp_Object args, ptrdiff_t count)
   for (ptrdiff_t i = 0; i < numargs; i++)
     {
       tem = Fcar (args_left), args_left = Fcdr (args_left);
+    func_lambda_args:
       tem = eval_sub (tem);
       arg_vector[i] = tem;
     }
